@@ -222,6 +222,8 @@ export const actions = {
     }
     const selection = context.state.selection;
     const card = DominionSets.getCardById(id);
+    console.log(selection);
+    console.log(card);
     const filterFn = (existingId: string) => existingId != id;
     if (card instanceof SupplyCard) {
       context.commit(UPDATE_SELECTION, {

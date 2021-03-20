@@ -51,6 +51,7 @@ export class SupplyBuilder {
     division = this.addExistingCardsAsAvailable(division, existingCards);
     let divisions = SupplyDivisions.applyDividers([division], this.dividers);
     divisions = this.applyExistingCards(divisions, existingCards);
+    console.log(divisions);
     return divisions;
   }
 

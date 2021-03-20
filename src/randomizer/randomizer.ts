@@ -86,6 +86,15 @@ export class Randomizer {
     throw new Error("Failed to select cards that satisfied all requirements.");
   }
 
+  static getAllSupplyCardsInSets(randomizerOptions: RandomizerOptions): SupplyCard[] {
+    const allSupplyCards =
+        Cards.getAllSupplyCards(Cards.getAllCardsFromSets(DominionSets.getAllSets()));
+    const allSupplyCardsToUse =
+        this.removeDuplicateCards(
+            allSupplyCards.filter(Cards.filterByIncludedSetIds(randomizerOptions.setIds)), []);
+    return allSupplyCardsToUse;
+  }
+
   static createSupply(randomizerOptions: RandomizerOptions): Supply {
     const allSupplyCards =
         Cards.getAllSupplyCards(Cards.getAllCardsFromSets(DominionSets.getAllSets()));

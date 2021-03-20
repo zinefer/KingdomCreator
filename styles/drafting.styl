@@ -1,0 +1,36 @@
+@require "variables"
+@require "main"
+@require "sidebar"
+
+.main
+  display: flex
+  flex-direction: column
+
+hr 
+  width: 100%
+
+.sidebar
+  margin-bottom: 10px
+
+.addons-header
+.modifiers-header
+  margin: 10px 0 0
+  font-size: 20px
+
+.options div
+  display: inline-block;
+  width: 200px
+
+
+// Move sidebar to the top
+@media (max-width: 750px)
+  .content
+    .sets
+      .set
+        width: 50%
+        float: left
+   
+    .meta
+      margin-top: 5px
+      .sidebar-content-title
+        font-size: 26px

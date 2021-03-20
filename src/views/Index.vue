@@ -5,17 +5,19 @@
       <Randomizer @specify-replacement="showReplaceModal = true" />
     </Page>
     <EnlargeButton />
+
+    <button @click="clickButton"  type="button" >Click!</button>
   </div>
 </template>
 
 <script lang="ts">
-
 import { Component } from "vue-property-decorator";
 import Base from "./base";
 import EnlargeButton from "../components/EnlargeButton.vue";
 import Page, { MenuItemType } from "../components/Page.vue";
 import Randomizer from "../components/Randomizer.vue";
 import ReplaceSupplyCardModal from "../components/ReplaceSupplyCardModal.vue";
+
 
 @Component({
   components: {

@@ -57,6 +57,7 @@ export default class FlippingCard extends Vue {
   @Prop() readonly card!: Card | null;
   @Prop() readonly isVertical!: boolean;
   @Prop() readonly onCardBackClick!: Function | null;
+  @Prop() readonly disableSelection!: boolean | null;
   @State(state => state.randomizer.selection) readonly selection!: Selection;
   @State(state => state.i18n.language) readonly language!: Language;
   activeCard: Card | null = null;
