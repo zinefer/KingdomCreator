@@ -38,8 +38,20 @@ export class Draft extends events.EventEmitter {
             throw new Error("Draft has started");
         }
 
+        if (this.players.indexOf(name) > -1) {
+            throw new Error("User already in draft");
+        }
+
         this.players.push(name);
         this.emit('joined', name);
+    }
+
+    leave(name: string): void {
+        let index = this.players.indexOf(name);
+        if (index > -1) {
+            this.players.splice(index, 1);
+        }
+        this.emit('left', name);
     }
 
     async start(): Promise<void> {
@@ -76,6 +88,10 @@ export class Draft extends events.EventEmitter {
             this.kingdom.push(card);
             this.nextPlayer();
         }
+    }
+
+    getPlayers(): string[] {
+        return this.players.concat();
     }
 
     private cardsToIds(cards:SupplyCard[]) {

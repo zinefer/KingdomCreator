@@ -2,49 +2,52 @@
   <div>
     <Page :subtitle="$t('index_page_subtitle')" :selectedType="selectedType">
       <div class="content">
-        <RandomizerSidebar v-if="!connected || hosting" />
-        
-        
-        
+        <DraftingSidebar :players="players" :hostSetsIds="hostSets" :hosting="hosting" />
+
         <div class="main">
-          <DraftSupply :supplyCards="draftSupply" />
+          <DraftSupply :supplyCards="draftSupply" :disableSets="true" />
 
           <hr/>
 
           <DraftingHand :supplyCards="draftHand" v-if="started" :onCardClick="handleClick" />
 
           <div class="options">
-            <div>
-              <div v-if="!connected">
-                <input v-model="draftPlayerName" placeholder="player name" v-if="!connected">
-                <button @click="hostDraft"  type="button" v-if="draftHostId == ''">Host Draft</button>
-              </div>
-              <div v-if="hosting">
-                <span>{{ getDraftHostId }}</span>
-                <h3>Players</h3>
-                <ul>
-                  <li v-for="player in players" :key="player.name">
-                    {{ player.name }}
-                  </li>
-                </ul>
-              </div>
-              <button @click="startDraft"  type="button" v-if="hosting && connected && !started">Start Draft</button>
-            </div>
-            <div v-if="!connected">
-              <h1>or</h1>
-            </div>
-            <div v-if="!connected">
-              <input v-model="draftPlayerName" placeholder="player name">
-              <input v-model="draftHostId" placeholder="host id">
-              <button @click="joinDraft"  type="button" >Join Draft</button>
-            </div>
-            <h1 v-if="started">Started</h1>
+            <h1 v-if="draftState.length" style="float: left">{{ draftState }}</h1>
+
+            <button @click="startDraft" type="button"
+              class="standard-button standard-button--is-primary standard-button--large desktop_randomize-button"
+              v-if="hosting && connected && !started"
+            >
+              Start Draft
+            </button>
+            
+            <CopyButton :text="getUrl" class="preset-kingdom-copy-button" v-if="connected && !started" />
+            
+            <button @click="hostDraft" type="button"
+              class="standard-button standard-button--is-primary standard-button--large desktop_randomize-button"
+              :disabled="isEmpty(draftPlayerName)"
+              v-if="!connected && isEmpty(draftHostId)"
+            >
+              Host Draft
+            </button>
+
+            <button @click="joinDraft" type="button" 
+              class="standard-button standard-button--is-primary standard-button--large desktop_randomize-button"
+              :disabled="isEmpty(draftPlayerName) || isEmpty(draftHostId)"
+              v-if="!connected && !isEmpty(draftHostId)"
+            >
+              Join Draft
+            </button>
+
+            <input v-model="draftPlayerName"
+              class="standard-input"
+              v-if="!connected"
+              placeholder="player name" />
           </div>
+
+          <div class="clearfix"></div>
+          <br/><br/>
         </div>
-
-
-
-        <div class="clearfix"></div>
       </div>
     </Page>
     <EnlargeButton />
@@ -52,14 +55,14 @@
 </template>
 
 <script lang="ts">
-import { Component } from "vue-property-decorator";
+import { Component, Watch } from "vue-property-decorator";
 import Base from "./base";
 import EnlargeButton from "../components/EnlargeButton.vue";
+import CopyButton from "../components/CopyButton.vue";
 import Page, { MenuItemType } from "../components/Page.vue";
-import RandomizerSidebar from "../components/RandomizerSidebar.vue";
+import DraftingSidebar from "../components/DraftingSidebar.vue";
 import DraftingHand from "../components/DraftingHand.vue";
 import DraftSupply from "../components/DraftSupply.vue";
-
 
 import { State } from "vuex-class";
 
@@ -80,10 +83,13 @@ import {Player} from "../drafting/player"
 import {DominionSets} from "../dominion/dominion-sets"
 import { Supply, Replacements } from "../randomizer/supply";
 
+import { SetId } from "../dominion/set-id";
+
 @Component({
   components: {
     Page,
-    RandomizerSidebar,
+    DraftingSidebar,
+    CopyButton,
     EnlargeButton,
     DraftingHand,
     DraftSupply
@@ -94,7 +100,9 @@ export default class Drafting extends Base {
   selectedType = MenuItemType.DRAFT;
   draftHostId = '';
   draftPlayerName = '';
+  draftState = '';
   draft!: Draft;
+  
   connected = false;
   hosting = false;
   started = false;
@@ -109,12 +117,22 @@ export default class Drafting extends Base {
 
   seenCards!: SupplyCard[];
 
+  hostSets: SetId[] = [];
+
   waitingChoiceCallback!: Function;
 
   @State(state => state.randomizer.settings) readonly settings!: Settings;
   @State(state => state.randomizer.selection) readonly selection!: Selection;
 
   peer = new Peer({});
+
+  created() {
+    let host = this.$route.query.host.toString();
+
+    if (host.length) {
+      this.draftHostId = host;
+    }
+  }
 
   get getDraftHostId() {
     return this.draftHostId;
@@ -133,6 +151,8 @@ export default class Drafting extends Base {
     this.peer.on('open', (id) => {
       console.log(id);
       this.draftHostId = id;
+      //this.$route.query.host = id;
+      this.$router.replace({ query: {host: id} });
       this.connected = true;
       this.hosting = true;
 
@@ -141,35 +161,27 @@ export default class Drafting extends Base {
     });
 
     this.peer.on('connection', (conn) => {
-
       conn.on('data', (msg) => {
         console.log(msg);
         
         switch (msg.type) {
           case 'join':
             try {
-              var player = new Player(msg.data.name);
+              let player = new Player(msg.data.name);
               player.connection = conn;
-              
-              this.draft.join(player.name);
+
+              conn.on('close', () => {
+                this.draft.leave(player.name);
+              });
               
               this.players.push(player);
 
-              this.players.forEach(alreadyPlayer => {
-                if (alreadyPlayer.name !== player.name && this.draftPlayerName !== player.name) {
-                  conn.send({
-                    type: 'joined',
-                    data: {
-                      player: player.name
-                    }
-                  });
-                }
-              });
+              this.draft.join(player.name);
 
-              conn.send({
+              this.sendToAll({
                 type: 'hostinfo',
                 data: {
-                  player: this.draftPlayerName
+                  sets: this.settings.selectedSets
                 }
               });
             } catch (error) {
@@ -178,7 +190,12 @@ export default class Drafting extends Base {
           break;
 
           case 'choice':
-            this.waitingChoiceCallback(msg.data.choice);        
+            this.waitingChoiceCallback(msg.data.choice);      
+          break;
+
+          case 'setinfo':
+            let player = this.getPlayerByName(msg.data.name);
+            player!.selectedSets = msg.data.sets;
           break;
 
           default:
@@ -203,7 +220,7 @@ export default class Drafting extends Base {
   private draftStarted() {
     this.started = true;
     this.draftSupply = []
-    //this.$store.commit(UPDATE_KINGDOM, this.draftKingdom);
+    this.draftState = 'Draft started';
   }
 
   handleClick(card:SupplyCard) {
@@ -224,6 +241,30 @@ export default class Drafting extends Base {
     this.draftHand = [];
   }
 
+  get getUrl() : string {
+    return window.location.href;
+  }
+
+  get shouldDisableSets() : boolean {
+    return true; //!this.connected || this.hosting;
+  }
+
+  @Watch("settings")
+  onSettingsChanged() {
+    if (this.connected) {
+      if (this.hosting) {
+        this.sendToAll({
+          type: 'hostinfo',
+          data: {
+            sets: this.settings.selectedSets
+          }
+        });
+      } else {
+        this.sendSets(this.peerConnection);
+      }
+    }
+  }
+
   private sendToAll(msg:any) {
     this.players.forEach(player => {
       console.log('send to ' + player.name);
@@ -233,32 +274,50 @@ export default class Drafting extends Base {
   }
 
   private draftHostHandlers() {
-    this.draft.on('choose', (player, hand, callback) => {
+    this.draft.on('choose', (playerName, hand, callback) => {
         this.waitingChoiceCallback = callback;
-        // send hand to player  
 
-        if (player === this.draftPlayerName) {
+        let chooser = this.getPlayerByName(playerName);
+        chooser!.choosing = true;
+
+        if (chooser!.name === this.draftPlayerName) {
+          this.draftState = 'Choose a card';
           this.addCardIdsToDraftHand(hand);
+          this.sendToAll({
+            type: 'choosing',
+            data: {
+              player: playerName
+            }
+          })
         } else {
-          let playerobj = this.getPlayerByName(player);
-          playerobj!.connection.send({
+          chooser!.connection.send({
             type: 'choose', 
             data: hand
           });
+
+          this.draftState = chooser!.name + ' is choosing';
+
+          this.sendToAll({
+            type: 'choosing',
+            data: {
+              player: chooser!.name
+            }
+          });
         }
-    }).on('joined', (player) => {
-      this.sendToAll({
-        type: 'joined',
-        data: {
-          player: player
-        }
-      });
-    }).on('choice', (player, choice) => {
-      this.addChoiceToKingdom(player, choice);
+    }).on('joined', (playerName) => {
+      this.sendAllPlayerList();
+    }).on('left', (playerName) => {
+      let index = this.players.findIndex(player => player.name === playerName);
+      this.players.splice(index, 1);
+      this.sendAllPlayerList()
+    }).on('choice', (playerName, choice) => {
+      this.getPlayerByName(playerName)!.choosing = false;
+      this.draftState = playerName + ' chose';
+      this.addChoiceToKingdom(playerName, choice);
       this.sendToAll({
         type: 'choice', 
         data: {
-          player: player,
+          player: playerName,
           choice: choice
         }
       });
@@ -266,16 +325,29 @@ export default class Drafting extends Base {
 
   }
 
+  private sendSets(connection:Peer.DataConnection) {
+    connection.send({
+      type: 'setinfo',
+      data: {
+        name: this.draftPlayerName,
+        sets: this.settings.selectedSets
+      }
+    });
+  }
+
+  private sendAllPlayerList() {
+    this.sendToAll({
+      type: 'playerinfo',
+      data: {
+        players: this.draft.getPlayers(),
+      }
+    });
+  }
+
   private addChoiceToKingdom(player:string, cardId:string) {
     let cards = this.draftSupply.concat();
-
-    //console.log(cards);
-
     cards.push(DominionSets.getSupplyCardById(cardId))
-
     this.draftSupply = cards;
-
-    //console.log(this.draftSupply);
   }
   
   private getPlayerByName(name:string) {
@@ -296,6 +368,8 @@ export default class Drafting extends Base {
 
     const conn = this.peer.connect(this.draftHostId);
 
+    this.draftState = "Connecting to host";
+
     conn.on('open', () => {
       console.log('connection open');
       this.peerConnection = conn;
@@ -310,20 +384,22 @@ export default class Drafting extends Base {
           name: this.draftPlayerName
         }
       });
+
+      this.sendSets(conn);
+
+      this.draftState = "Connected. Waiting for host";
       
     });
 
     conn.on('data', (msg) => {
-      
+      console.log(msg);
       switch (msg.type) {
-        case 'hostinfo':
-          var player = new Player(msg.data.player);
-          this.players = [player, ...this.players];
-        break;
-
-        case 'joined':
-          var player = new Player(msg.data.player);
-          this.players.push(player);
+        case 'playerinfo':
+          let newPlayers : Player[] = [];
+          msg.data.players.forEach((player: string) => {
+            newPlayers.push(new Player(player));
+          });
+          this.players = newPlayers;
         break;
 
         case 'start':
@@ -332,10 +408,26 @@ export default class Drafting extends Base {
 
         case 'choose': 
           this.addCardIdsToDraftHand(msg.data);
+          this.draftState = 'Choose a card';
+        break;
+
+        case 'choosing':
+          let choosingPlayer = this.getPlayerByName(msg.data.player);
+          choosingPlayer!.choosing = true;
+          if (choosingPlayer!.name != this.draftPlayerName) {
+            this.draftState = choosingPlayer!.name + ' is choosing';
+          }
         break;
 
         case 'choice':
+          let chosePlayer = this.getPlayerByName(msg.data.player);
+          chosePlayer!.choosing = false;
+          this.draftState = chosePlayer!.name + ' chose';
           this.addChoiceToKingdom(msg.data.player, msg.data.choice);
+        break;
+
+        case 'hostinfo':
+          this.hostSets = msg.data.sets;
         break;
       
         default:
@@ -350,6 +442,10 @@ export default class Drafting extends Base {
       console.log(data);
     });
 
+  }
+
+  private isEmpty(value: string) {
+    return value.length == 0;
   }
 }
 </script>

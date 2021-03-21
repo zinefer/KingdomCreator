@@ -9,7 +9,7 @@
   text-align: center;
   text-decoration: none;
 
-.standard-button:hover::before
+.standard-button:not([disabled]):hover::before
   content: '';
   position: absolute;
   background: rgba(255, 255, 255, 0.25);
@@ -21,6 +21,13 @@
 .standard-button:active
   box-shadow: none;
   transform: translate(0, 1px);
+
+.standard-button:disabled
+  color: #fff;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid #777;
+  box-shadow: none;
+  cursor: not-allowed;
 
 .standard-button--is-grey
   color: #fff;
