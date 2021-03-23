@@ -10,7 +10,7 @@ module.exports = class DominionContentPlugin {
 
       // Insert into the webpack build as new file assets.
       // TODO: Include a hash and figure out how to pipe it into the template files.
-      compilation.assets['dominion-content.js'] = {
+      compilation.assets['/KingdomCreator/dominion-content.js'] = {
         source: function() {
           return script;
         },
