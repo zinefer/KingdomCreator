@@ -21,6 +21,7 @@ module.exports = function(isProduction) {
     },
     output: {
       path: path.resolve(__dirname, "docs"),
+      publicPath: "/KingdomCreator/",
       filename: "[name]-[contenthash].js"
     },
     module: {

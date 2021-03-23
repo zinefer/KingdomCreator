@@ -213,6 +213,7 @@ export default class Drafting extends Base {
 
   startDraft() {
     this.sendToAll({type: 'start'});
+    this.draft.setSettings(this.settings);
     this.draft.start();
     this.draftStarted();
   }

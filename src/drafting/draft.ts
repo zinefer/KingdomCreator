@@ -94,6 +94,10 @@ export class Draft extends events.EventEmitter {
         return this.players.concat();
     }
 
+    setSettings(settings:Settings) {
+        this.settings = settings;
+    }
+
     private cardsToIds(cards:SupplyCard[]) {
         console.log(cards);
         return cards.map((card) => card.id).sort();
