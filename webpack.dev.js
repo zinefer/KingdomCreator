@@ -21,6 +21,10 @@ module.exports = merge(common(false), {
         target: 'http://localhost:8080',
         pathRewrite: {"^/rules" : "/docs/rules"}
       }
-    }
+    },
+  },
+  watchOptions: {
+    aggregateTimeout: 200,
+    poll: 1000,
   }
 });

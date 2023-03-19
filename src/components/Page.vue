@@ -86,6 +86,7 @@ import { Language } from "../i18n/language";
 
 export enum MenuItemType {
   RANDOMIZER,
+  DRAFT,
   SETS,
   RULES,
 }
@@ -97,6 +98,7 @@ class MenuItem {
 
 const MENU_ITEMS = [
   new MenuItem(MenuItemType.RANDOMIZER, "Randomizer", "/"),
+  new MenuItem(MenuItemType.DRAFT, "Draft", "/drafting.html"),
   new MenuItem(MenuItemType.SETS, "Recommended Kingdoms", "/sets.html"),
   new MenuItem(MenuItemType.RULES, "Rules", "/rules.html"),
 ];

@@ -1,27 +1,32 @@
 <template>
   <div>
     <GridLayout
-      :items="supplyCardsWithBane"
+      :items="cards"
       :number-of-columns="numberOfColumns"
       :is-vertical="true"
-      class="sortable-supply-cards"
       :class="{'kingdom-supply--is-enlarged': isEnlarged}"
+      class="sortable-supply-cards"
     >
       <template v-slot:default="slotProps">
         <FlippingCard :card="slotProps.item" :is-vertical="true"
           @front-visible="handleSupplyCardFrontVisible"
           @flipping-to-back="handleSupplyCardFlippingToBack"
         >
-          <template v-slot:highlight-content>
-            <div 
-              v-if="!isBane(slotProps.item)"
-              class="standard-button standard-button--is-primary standard-button--light-border"
-              @click.stop="handleSpecify(slotProps.item)"
-            >
-              Specify
-            </div>
-          </template>
-          <BaneCardCover v-if="isBane(slotProps.item)" />
+        </FlippingCard>
+      </template>
+    </GridLayout>
+    <GridLayout
+      :items="addons"
+      :number-of-columns="numberOfAddonColumns"
+      :is-vertical="false"
+      :class="{'addon--is-enlarged': isEnlarged}"
+      class="sortable-supply-cards"
+    >
+      <template v-slot:default="slotProps">
+        <FlippingCard :card="slotProps.item" :is-vertical="false"
+          @front-visible="handleSupplyCardFrontVisible"
+          @flipping-to-back="handleSupplyCardFlippingToBack"
+        >
         </FlippingCard>
       </template>
     </GridLayout>
@@ -30,18 +35,19 @@
 
 <script lang="ts">
 import FlippingCard from "./FlippingCard.vue";
-import BaneCardCover from "./BaneCardCover.vue";
+import GridLayout from "./GridLayout.vue";
+
 import { Coordinate } from "../utils/coordinate";
+import { Addon } from "../dominion/addon";
 import { SupplyCard } from "../dominion/supply-card";
+import { SetId } from "../dominion/set-id";
+import { Cost } from "../dominion/cost"
 import { State } from "vuex-class";
-import { Vue, Component, Watch } from "vue-property-decorator";
+import { Vue, Component, Watch, Prop } from "vue-property-decorator";
 import { SortOption } from "../settings/settings";
-import { Kingdom } from "../randomizer/kingdom";
 import { SupplyCardSorter } from "../utils/supply-card-sorter";
 import { gsap, Sine } from "gsap";
 import { Selection } from "../stores/randomizer/selection";
-import { UPDATE_SPECIFYING_REPLACEMENT_SUPPLY_CARD } from "../stores/randomizer/mutation-types";
-import GridLayout from "./GridLayout.vue";
 
 interface MoveDescriptor {
   elementIndex: number;
@@ -55,18 +61,19 @@ const WINDOW_RESIZE_DELAY_MSEC = 300;
   components: {
     GridLayout,
     FlippingCard,
-    BaneCardCover,
   }
 })
-export default class SortableSupplyCards extends Vue {
-  @State(state => state.randomizer.kingdom) readonly kingdom!: Kingdom;
-  @State(state => state.randomizer.settings.sortOption) readonly sortOption!: SortOption;
+
+export default class DraftSupply extends Vue {
   @State(state => state.window.width) readonly windowWidth!: number;
   @State(state => state.window.isEnlarged) readonly isEnlarged!: boolean;
-  @State(state => state.randomizer.selection) readonly selection!: Selection;
+  @State(state => state.randomizer.selection) readonly selection!: Selection; 
+  
   elementIndexMapping = new Map<number, number>();
-  kingdomId: number = 0;
-  supplyCards: SupplyCard[] = [];
+  @Prop() readonly supplyCards: SupplyCard[] = [];
+  @Prop() readonly addonCards: Addon[] = [];
+  @Prop() readonly numberOfAddonCards = 0;
+  mappedSupplyCards: SupplyCard[] = [];
   numberOfSupplyCardsLoading = 0;
   requiresSupplyCardSort = false;
   activeAnimations: Set<GSAPTween> = new Set();
@@ -81,24 +88,37 @@ export default class SortableSupplyCards extends Vue {
     return this.isEnlarged ? 2 : this.windowWidth > 450 ? 5 : 4
   }
 
-  get supplyCardsWithBane() {
-    //const cards =  SupplyCardSorter.sort(this.supplyCards.concat() as SupplyCard[], this.sortOption, this.$t.bind(this));
+  get numberOfAddonColumns() {
+    return this.isEnlarged ? 1 : this.windowWidth > 525 ? 3 : 2;
+  }
+
+  get cards() {
     const cards = this.supplyCards.concat();
-    if (this.kingdom.supply.baneCard) {
-      cards.push(this.kingdom.supply.baneCard);
+    let len = cards.length;
+
+    for (let i = 0; i < 10 - len; i++) {
+      cards.push(new SupplyCard('none', 'none', SetId.BASE_SET, 'none', new Cost(0,0,0), false, false,false,false,false,false,false,false,false,false,false,false,false,false,false, false));
     }
+
     return cards;
   }
 
-  @Watch("kingdom")
-  handleKingdomChanged() {
-    this.updateActiveSupplyCards();
-  }
+  get addons() {
+    const cards = this.addonCards.concat();
+    let len = cards.length;
 
-  @Watch("sortOption")
-  handleSortOptionChanged() {
-    this.requiresSupplyCardSort = true;
-    this.attemptToAnimateSupplyCardSort();
+    for (let i = 0; i < this.numberOfAddonCards - len; i++) {
+      const addon: Addon = {
+        name: 'none',
+        id: 'none',
+        shortId: 'none',
+        setId: SetId.BASE_SET,
+        cost: new Cost(0,0,0),
+      }
+      cards.push(addon)
+    }
+
+    return cards;
   }
 
   @Watch("windowWidth")
@@ -119,15 +139,6 @@ export default class SortableSupplyCards extends Vue {
     this.$nextTick(() => this.resetCardPositions());
   }
 
-  isBane(supplyCard: SupplyCard) {
-    return this.kingdom.supply.baneCard &&
-      this.kingdom.supply.baneCard.id == supplyCard.id;
-  }
-
-  handleSpecify(supplyCard: SupplyCard) {
-    this.$store.commit(UPDATE_SPECIFYING_REPLACEMENT_SUPPLY_CARD, supplyCard);
-  }
-
   handleSupplyCardFlippingToBack(supplyCard: SupplyCard) {
     this.numberOfSupplyCardsLoading += 1;
   }
@@ -142,29 +153,16 @@ export default class SortableSupplyCards extends Vue {
   }
 
   private updateActiveSupplyCards() {
-    if (!this.kingdom) {
+    if (this.supplyCards.length == 0) {
       return;
     }
-    if (this.kingdomId == this.kingdom.id) {
-      this.updateSupplyCards();
-      return;
-    }
-    this.kingdomId = this.kingdom.id;
-    const sortedSupplyCards =
-        SupplyCardSorter.sort(this.kingdom.supply.supplyCards.concat(), this.sortOption, this.$t.bind(this));
     
     // Remap the sorted supply cards to where the elements currently reside.
     const mappedSupplyCards = [];
-    for (let i = 0; i < sortedSupplyCards.length; i++) {
-      mappedSupplyCards[this.getElementIndex(i)] = sortedSupplyCards[i];
+    for (let i = 0; i < this.supplyCards.length; i++) {
+      mappedSupplyCards[this.getElementIndex(i)] = this.supplyCards[i];
     }
-    this.supplyCards = mappedSupplyCards;
-  }
-
-  private updateSupplyCards() {
-    this.requiresSupplyCardSort = true;
-    this.supplyCards = SortableSupplyCards.replaceSupplyCards(
-        this.supplyCards, this.kingdom.supply.supplyCards);
+    this.mappedSupplyCards = mappedSupplyCards;
   }
 
   private attemptToAnimateSupplyCardSort() {
@@ -190,14 +188,13 @@ export default class SortableSupplyCards extends Vue {
 
   private cancelActiveAnimations() {
     for (let animation of this.activeAnimations) {
-      animation.kill();	
+      animation.kill();
     }
     this.activeAnimations.clear();
   }
 
   private animateSupplyCardSort() {
-    const sortedCards = SupplyCardSorter.sort(this.supplyCards.concat(), this.sortOption, this.$t.bind(this));
-    const descriptors = this.createMoveDescriptors(sortedCards);
+    const descriptors = this.createMoveDescriptors(this.supplyCards.concat());
     const newMapping: Map<number, number> = new Map();
 
     for (let descriptor of descriptors) {
@@ -207,16 +204,11 @@ export default class SortableSupplyCards extends Vue {
       const x = endCoord.x - startCoord.x;
       const y = endCoord.y - startCoord.y;
       const tween =
-           gsap.to(element, {duration: ANIMATION_DURATION_SEC,
-             transform: `translate(${x}px,${y}px)`,
-             ease: Sine.easeInOut,
-             onComplete: function() { 
-                tween.kill
-                return;
-                }
-             }
-           ) as GSAPTween;
-
+          gsap.to(element, ANIMATION_DURATION_SEC, {
+            transform: `translate(${x}px,${y}px)`,
+            ease: Sine.easeInOut,
+            onComplete: () => { this.activeAnimations.delete(tween) },
+          });
       this.activeAnimations.add(tween);
       newMapping.set(descriptor.newVisualIndex, descriptor.elementIndex);
     }
@@ -224,7 +216,7 @@ export default class SortableSupplyCards extends Vue {
   }
 
   private createMoveDescriptors(sortedSupplyCards: SupplyCard[]) {
-    const cardIds = this.supplyCards.map((card) => card.id);
+    const cardIds = sortedSupplyCards.map((card) => card.id);
     const descriptors: MoveDescriptor[] = [];
     for (let newVisualIndex = 0; newVisualIndex < sortedSupplyCards.length; newVisualIndex++) {
       descriptors.push({
@@ -252,33 +244,6 @@ export default class SortableSupplyCards extends Vue {
     return this.elementIndexMapping.has(visualIndex) 
         ? this.elementIndexMapping.get(visualIndex)!
         : visualIndex;
-  }
-
-  private static replaceSupplyCards(oldSupplyCards: SupplyCard[], newSupplyCards: SupplyCard[]) {
-    const supplyCards: SupplyCard[] = [];
-    const supplyCardsToAdd = SortableSupplyCards.getSupplyCardsToAdd(oldSupplyCards, newSupplyCards);
-    const oldIds = SortableSupplyCards.getOldIds(oldSupplyCards, newSupplyCards);
-    let supplyCardsToAddIndex = 0;
-    for (let i = 0; i < oldSupplyCards.length; i++) {
-      const supplyCard = oldSupplyCards[i];
-      if (oldIds.has(supplyCard.id)) {
-        supplyCards.push(supplyCardsToAdd[supplyCardsToAddIndex]);
-        supplyCardsToAddIndex += 1;
-      } else {
-        supplyCards.push(supplyCard);
-      }
-    }
-    return supplyCards;
-  }
-
-  private static getSupplyCardsToAdd(oldSupplyCards: SupplyCard[], newSupplyCards: SupplyCard[]) {
-    const existingIds = new Set(oldSupplyCards.map((card) => card.id));
-    return newSupplyCards.filter((card) => !existingIds.has(card.id));
-  }
-
-  private static getOldIds(oldSupplyCards: SupplyCard[], newSupplyCards: SupplyCard[]) {
-    const newIds = new Set(newSupplyCards.map((card) => card.id));
-    return new Set(oldSupplyCards.filter((card) => !newIds.has(card.id)).map((card) => card.id));
   }
 }
 </script>

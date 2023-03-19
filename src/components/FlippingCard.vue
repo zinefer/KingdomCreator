@@ -29,7 +29,7 @@ import { Vue, Component, Prop, Watch } from "vue-property-decorator";
 import { State } from "vuex-class";
 import { getCardImageUrl } from "../utils/resources";
 import { Card } from "../dominion/card";
-import { TweenLite, Sine } from "gsap";
+import { gsap, Sine } from "gsap";
 import { Selection } from "../stores/randomizer/selection";
 import { TOGGLE_CARD_SELECTION } from "../stores/randomizer/action-types";
 import { Language } from "../i18n/language";
@@ -57,13 +57,14 @@ export default class FlippingCard extends Vue {
   @Prop() readonly card!: Card | null;
   @Prop() readonly isVertical!: boolean;
   @Prop() readonly onCardBackClick!: Function | null;
+  @Prop() readonly disableSelection!: boolean | null;
   @State(state => state.randomizer.selection) readonly selection!: Selection;
   @State(state => state.i18n.language) readonly language!: Language;
   activeCard: Card | null = null;
   cardState = CardState.BACK_VISIBLE;
   animationParams: AnimationParams = {rotation: 0};
   isFrontLoaded = false;
-  activeAnimation: TweenLite | null = null;
+  activeAnimation: GSAPTween | null = null;
 
   mounted() {
     this.updateCardState();
@@ -180,7 +181,7 @@ export default class FlippingCard extends Vue {
   }
 
   animateToRotation(rotation: number) {
-    this.activeAnimation = TweenLite.to(this.animationParams, ANIMATION_DURATION_SEC, {
+    this.activeAnimation = gsap.to(this.animationParams, ANIMATION_DURATION_SEC, {
       rotation: rotation,
       ease: Sine.easeInOut,
       onComplete: () => this.handleAnimationEnd(),

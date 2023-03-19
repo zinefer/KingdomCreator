@@ -15,11 +15,13 @@ module.exports = function(isProduction) {
     },
     entry: {
       index: ["./src/index-page.ts", "./styles/index.styl"],
+      drafting: ["./src/drafting-page.ts", "./styles/drafting.styl"],
       sets: ["./src/sets-page.ts", "./styles/sets.styl"],
       rules: ["./src/rules-page.ts", "./styles/rules.styl"],
     },
     output: {
       path: path.resolve(__dirname, "docs"),
+      //publicPath: "/KingdomCreator/",
       filename: "[name]-[contenthash].js"
     },
     module: {
@@ -79,6 +81,12 @@ module.exports = function(isProduction) {
         template: "./views/index.pug",
         chunks: ["index"],
         filename: "index.html",
+        isProduction: isProduction,
+      }),
+      new HtmlWebpackPlugin({
+        template: "./views/drafting.pug",
+        chunks: ["drafting"],
+        filename: "drafting.html",
         isProduction: isProduction,
       }),
       new HtmlWebpackPlugin({
